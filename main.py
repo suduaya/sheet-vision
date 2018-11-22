@@ -44,7 +44,7 @@ def preprocess(img):
 
 def run(read_img):
     # open image to process
-    #read_img = getCroppedSheet(read_img)
+    read_img = getCroppedSheet(read_img)
     img_main  = read_img
     img_color = read_img
 
@@ -100,7 +100,7 @@ def run(read_img):
         cv2.putText(img_color, label, (maxLoc[0], maxLoc[1] + tW), 1, 1.1, (0, 128, 255), 2, cv2.LINE_AA)
         cv2.imshow('img', img_main)
         cv2.imshow('imgcolor', img_color)
-        cv2.waitKey(1)
+        cv2.waitKey(0)
 
 
     #cv2.imshow('img', img_main)
@@ -123,14 +123,11 @@ def getCroppedSheet(img):
 
     # draw rectangle over the sheet
     maxHeight, minHeight, maxWidth, minWidth = contourRectangleCoordinates(contours)
-    offset = 10  # px offset
-    #cv2.rectangle(img_color, (minHeight-offset, minWidth-offset), (maxHeight-offset, maxWidth-offset), (255, 0, 0), 2)
-
+    offset = 0  # px offset
+    #cv2.rectangle(cropped, (minHeight-offset, minWidth-offset), (maxHeight-offset, maxWidth-offset), (255, 0, 0), 2)
     # crop the rectangle
     cropped = cropped[ minWidth - offset : maxWidth - offset , minHeight - offset : maxHeight - offset]
 
-    cv2.imshow('cropped', cropped)
-    cv2.waitKey(0)
     return np.uint8(cropped)
 
 def contourRectangleCoordinates(contours):
@@ -164,12 +161,100 @@ def contourRectangleCoordinates(contours):
 
     return maxHeight, minHeight, maxWidth, minWidth
 
+def getChessRectangle(corners):
+    # max values
+    maxHeight = -1  # x
+    maxWidth = -1  # y
+
+    # min values
+    minHeight = 10000000  # x
+    minWidth = 10000000  # y
+
+    first = True
+    c = 0
+    for i in corners:
+        for j in i:  # check contour coordinates
+            #print(j)
+            point = j
+            x = point[0]
+            y = point[1]
+            if x > maxHeight:
+                maxHeight = x
+            if x < minHeight:
+                minHeight = x
+            if y > maxWidth:
+                maxWidth = y
+            if y < minWidth:
+                minWidth = y
+
+    return maxHeight, minHeight, maxWidth, minWidth
+
+def findChessboards(img):
+    pattern_size = (3,3)
+    centers = []
+    while(True):
+        ret, corners = cv2.findChessboardCorners(img, pattern_size, None)
+        #print(corners)
+        # If found, add object points, image points
+        if ret == True:
+            # Draw and display the corners
+            cv2.drawChessboardCorners(img, pattern_size, corners, ret)
+            #write_name = 'corners_found'+str(idx)+'.jpg'
+            #cv2.imwrite(write_name, img)
+            #cv2.imshow('img', img)
+            #cv2.waitKey(0)
+            center = corners[4]
+            centers.append(center)
+            maxHeight, minHeight, maxWidth, minWidth = getChessRectangle(corners)
+            cv2.rectangle(img, (minHeight, minWidth), (maxHeight, maxWidth), (255, 255, 255), cv2.FILLED)
+            #cv2.imshow('img', img)
+            #cv2.waitKey(1)
+
+        if ret == False:
+            break
+
+    sorted_ctrs = sorted(centers, key=lambda centers: cv2.boundingRect(centers)[0]* img.shape[0] - cv2.boundingRect(centers)[1] * img.shape[1] )
+    lb= sorted_ctrs[0]
+    lt= sorted_ctrs[1]
+    rb= sorted_ctrs[2]
+    rt= sorted_ctrs[3]
+
+    src_pts = np.array([lt[0], rt[0], rb[0], lb[0]], dtype=np.float32)
+
+    warp = perspective_transform(img, src_pts)
+    return warp
+
+def perspective_transform(image, rect):
+    (tl, tr, br, bl) = rect
+
+    widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+    widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+    maxWidth = max(int(widthA), int(widthB))
+
+    heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+    heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+    maxHeight = max(int(heightA), int(heightB))
+
+    dst = np.array([
+        [0, 0],
+        [maxWidth - 1, 0],
+        [maxWidth - 1, maxHeight - 1],
+        [0, maxHeight - 1]], dtype="float32")
+
+    # apply perspectives
+    M = cv2.getPerspectiveTransform(rect, dst)
+    toRet = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+
+    return toRet
 
 ################################################################################################################
 
-img = cv2.imread("sheets/sheet_easy.png")
-run(img)
+img = cv2.imread("sheets/test.png")
+#run(img)
 
-#TODO : problems when image is cropped, dunno why
+warp = findChessboards(img)
+cv2.imshow("warp", warp)
+cv2.waitKey(0)
+
 #TODO : matching with scaling
 

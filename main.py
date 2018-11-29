@@ -34,12 +34,14 @@ def best_match(img):
 def preprocess(img):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY);
     _, img = cv2.threshold(img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    img = cv2.erode(img, kernel, iterations=2)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
     img = cv2.dilate(img, kernel, iterations=4)
+    img = cv2.erode(img, kernel, iterations=4)
     img = cv2.Canny(img, 180, 255)
     cv2.bitwise_not(img, img);
-    img = cv2.erode(img, kernel, iterations=2)
+    img = cv2.erode(img, kernel, iterations=3)
+
+    #img = cv2.dilate(img, kernel, iterations=2)
     return img
 
 def run(read_img):
@@ -206,9 +208,13 @@ def findChessboards(img):
             center = corners[4]
             centers.append(center)
             maxHeight, minHeight, maxWidth, minWidth = getChessRectangle(corners)
-            cv2.rectangle(img, (minHeight, minWidth), (maxHeight, maxWidth), (255, 255, 255), cv2.FILLED)
+
+            offset = np.float32((corners[1][0][0] - corners[0][0][0]))
+            offset = np.float32(50)
+
+            cv2.rectangle(img, (minHeight-offset, minWidth-offset), (maxHeight+offset, maxWidth+offset), (255, 255, 255), cv2.FILLED)
             #cv2.imshow('img', img)
-            #cv2.waitKey(1)
+            #cv2.waitKey(0)
 
         if ret == False:
             break
@@ -249,12 +255,19 @@ def perspective_transform(image, rect):
 
 ################################################################################################################
 
-img = cv2.imread("sheets/test.png")
-#run(img)
+img = cv2.imread("sheets/warp8.png")
 
-warp = findChessboards(img)
-cv2.imshow("warp", warp)
-cv2.waitKey(0)
+run(img)
 
+#
+#img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY);
+#img = findChessboards(img)
+#_, img = cv2.threshold(img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
+#cv2.imshow("warp", img)
+#cv2.imwrite("sheets/warp8.png", img)
+#cv2.waitKey(0)
+#
 #TODO : matching with scaling
+#TODO : camera calibration
+#TODO : detect notes
 

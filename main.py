@@ -31,6 +31,49 @@ def best_match(img):
 
     return maxval, tHmax, tWmax, maxLocmax, label
 
+def discoverNote(img):
+    print("Seeking for Notes")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = np.float32(gray)
+    corners = cv2.goodFeaturesToTrack(gray, 5, 0.001, 10)  # Determines strong corners on an image
+    corners = np.int0(corners)
+
+    notes = []
+
+    for corner in corners:
+        x, y = corner.ravel()
+        cv2.circle(img, (x, y), 3, 255, -1)
+        notes.append(y)
+
+    notes.sort() # ascending
+
+    min = notes[0]
+    max = notes[4]
+
+    distances = []
+
+    for i in range(0, 3):
+        distance = notes[i+1] - notes[i]
+        distances.append(distance)
+
+    mean_distance = int(np.mean(distances))
+
+    notes.append(min - mean_distance)
+    notes.append(max + mean_distance)
+    notes.sort()  # ascending
+
+    #for corner in notes:
+    #    y = corner
+    #    cv2.circle(img, (6, y), 3, 255, -1)
+
+    #print(notes)
+    #cv2.imshow("note", img)
+    #cv2.waitKey(0)
+
+    return notes
+
+
+
 def preprocess(img):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY);
     _, img = cv2.threshold(img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
@@ -41,7 +84,6 @@ def preprocess(img):
     cv2.bitwise_not(img, img);
     img = cv2.erode(img, kernel, iterations=3)
 
-    #img = cv2.dilate(img, kernel, iterations=2)
     return img
 
 def run(read_img):
@@ -49,61 +91,55 @@ def run(read_img):
     read_img = getCroppedSheet(read_img)
     img_main  = read_img
     img_color = read_img
+    _, templates = cv2.threshold(read_img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
 
-    cv2.imshow('img', img_main)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    #cv2.imshow('img', img_main)
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
 
     img_main = preprocess(img_main)
 
-
-
-    cv2.imshow('img', img_main)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-    '''  sliding window
-    a = 120
-    b = 120 + 122
-    
-    for i in range(0,16):
-        #img = img_main[23:200, a:b]
-        #imgcolor = img_color[23:200, a:b]
-        img = img_main
-        imgcolor = img_color
-    
-        #a = a + 122;
-        #b = b + 122;
-    
-    
-    '''
-
-    #img_main = img_main[0:200, 140:2362]
-    #img_color = img_color[0:200, 140:2362]
-    offset = 10  # px offset to delete
     #cv2.imshow('img', img_main)
-    #cv2.imshow('imgcolor', img_color)
     #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+
+
+    offset = 10  # px offset to delete
+    notes = False
+
 
     while(True):   # it will stop when there isnt a good match (all white)
         #print(best_match(img_main))
         try:
             maxval, tH, tW, maxLoc, label = best_match(img_main)
+            # match
+            (imgtH, imgtW) = templates.shape[:2]
+            #new_match = templates[maxLoc[1]:(maxLoc[1] + tH), maxLoc[0]:(maxLoc[0] + tW)]  # exact match
+            new_match = templates[0:(imgtH), maxLoc[0]:(maxLoc[0] + tW)]
+
             if (maxLoc==0):
                 print("There are no more samples to be recognized !")
                 break;
         except Exception as e:
-            print(e)
+            #print(e)
+            print("Finished !")
             break
 
         color = (255, 128, 64)
+
         cv2.rectangle(img_main, (maxLoc[0]-offset, maxLoc[1]-offset), (maxLoc[0] + tW+offset, maxLoc[1] + tH+offset), (255, 255, 255), cv2.FILLED) # paint white
         cv2.rectangle(img_color, (maxLoc[0], maxLoc[1]), (maxLoc[0] + tW, maxLoc[1] + tH), color, 2)
         cv2.putText(img_color, label, (maxLoc[0], maxLoc[1] + tW), 1, 1.1, (0, 128, 255), 2, cv2.LINE_AA)
+        ##
+        #if label != "clave" and label != "end" and label != "split" and label != "pause":
+        if label == "split" and notes == False :
+            discoverNote(new_match)
+            notes = True
+        ##
+        cv2.imshow('new_match', new_match)
         cv2.imshow('img', img_main)
         cv2.imshow('imgcolor', img_color)
         cv2.waitKey(0)
-
 
     #cv2.imshow('img', img_main)
     #cv2.imshow('imgcolor', img_color)

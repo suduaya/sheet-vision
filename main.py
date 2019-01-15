@@ -3,6 +3,10 @@ import cv2
 import os
 import glob
 
+
+'''
+    Calibration and Undistortion procedure
+'''
 def calibrateAndUndistort(new_capture):
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
@@ -36,6 +40,10 @@ def calibrateAndUndistort(new_capture):
 
     return np.uint8(img)
 
+
+'''
+    Matching round algorithm, returning the best candidate at that iteration
+'''
 def best_match(img):
     maxval = 0
     label = ""
@@ -62,12 +70,14 @@ def best_match(img):
                         tWmax = tW
                         maxLocmax = maxLoc
                         label = str(dir)
-                        filemax = str(file)
 
     return maxval, tHmax, tWmax, maxLocmax, label
 
-def minDistanceLine(points, lines):
 
+'''
+    Min absolute distance calc
+'''
+def minDistanceLine(points, lines):
     min_indexes = []
 
     for point in points:
@@ -78,9 +88,15 @@ def minDistanceLine(points, lines):
 
     return min_indexes
 
+
+'''
+    Give an template (img), the line coordinates and the label of the given template,
+    finds the nearest line, predicting the note
+'''
 def best_match_note(img, lines, label):
     cimg = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     kernel = np.ones((3, 3), np.uint8)
+
     if label == 'half':
         img = cv2.erode(img, kernel, iterations=2)
         img = cv2.dilate(img, kernel, iterations=6)
@@ -91,6 +107,7 @@ def best_match_note(img, lines, label):
 
     ret, thresh = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
     crop, contours, hierarchy = cv2.findContours(thresh, 1, 2)
+
     centers_list = []
     for cnt in contours:
         (x, y), radius = cv2.minEnclosingCircle(cnt)
@@ -103,84 +120,39 @@ def best_match_note(img, lines, label):
             centers_list.append(center)
 
     centers_list.sort(key=lambda centers: centers[0])
-
     min_indexes = minDistanceLine(centers_list, lines)
-
     points_and_indexes = list(zip(centers_list, min_indexes))
 
     return points_and_indexes
 
+
 '''
-    Not used
+    Custom image processing sequence applied on the input image and on the templates
 '''
-def discoverNote(img):
-    cv2.imshow("seeking", img)
-    cv2.waitKey(0)
-    print("Seeking for Notes")
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-    img = cv2.erode(img, kernel, iterations=1)
-    cv2.imshow("notes", img)
-    cv2.waitKey(0)
-    corners = cv2.goodFeaturesToTrack(img, 5, 0.001, 7)  # Determines strong corners on an image
-    corners = np.int0(corners)
-
-    notes = []
-
-    #print(corners)
-    for corner in corners:
-        x, y = corner.ravel()
-        cv2.circle(img, (x, y), 3, 255, -1)
-        notes.append(y)
-
-    notes.sort() # ascending
-
-    min = notes[0]
-    max = notes[4]
-
-    distances = []
-
-    for i in range(0, 3):
-        distance = notes[i+1] - notes[i]
-        distances.append(distance)
-
-    mean_distance = int(np.mean(distances))
-
-    notes.append(min - mean_distance)
-    notes.append(max + mean_distance)
-    notes.sort()  # ascending
-    cv2.waitKey(0)
-    for corner in notes:
-        y = corner
-        cv2.circle(img, (6, y), 3, 255, -1)
-
-    print(notes)
-    #cv2.imshow("note", img)
-    #cv2.waitKey(0)
-
-    return notes
-
 def preprocess(img):
     _, img = cv2.threshold(img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
     img = cv2.dilate(img, kernel, iterations=4)
     img = cv2.erode(img, kernel, iterations=4)
     img = cv2.Canny(img, 180, 255)
-    cv2.bitwise_not(img, img);
+    cv2.bitwise_not(img, img)
     img = cv2.erode(img, kernel, iterations=3)
 
     return img
 
+
+'''
+    Main
+'''
 def run(read_img):
     # open image to process
 
     img_main  = read_img
     img_color = read_img
     _, templates = cv2.threshold(read_img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
-
-    img_main = preprocess(img_main)       # TODO: check this alteration
+    img_main = preprocess(img_main)
 
     check_notes = ["a", "f", "d", "b", "g", "e", "c", "g", "e", "c", "a", "f", "d"]
-
 
     # static sheet coordinates
     linearOffset = 1
@@ -215,6 +187,8 @@ def run(read_img):
 
 
     img_color = cv2.cvtColor(img_color, cv2.COLOR_GRAY2BGR)
+    cv2.imshow("imgcolor", img_color)
+    cv2.waitKey(0)
 
     while(True):   # it will stop when there isnt a good match (all white)
         try:
@@ -268,59 +242,10 @@ def run(read_img):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-def getCroppedSheet(img):
-    img_aux = img
-    cropped = img
-    # processment to detect sheet
-    #img_aux = cv2.cvtColor(img_aux, cv2.COLOR_BGR2GRAY); # TODO check this
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    img_aux = cv2.erode(img_aux, kernel, iterations=30)
-    ret, img_aux = cv2.threshold(img_aux, 127, 255, 0)
-    _, contours, _ = cv2.findContours(img_aux, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    ret, img_aux = cv2.threshold(img_aux, 127, 255, 0)
-    _, contours, _ = cv2.findContours(img_aux, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    #cv2.drawContours(img, contours, 1, (0, 255, 0), 3)
 
-    # draw rectangle over the sheet
-    maxHeight, minHeight, maxWidth, minWidth = contourRectangleCoordinates(contours)
-    offset = 0  # px offset
-    #cv2.rectangle(cropped, (minHeight-offset, minWidth-offset), (maxHeight-offset, maxWidth-offset), (255, 0, 0), 2)
-    # crop the rectangle
-    cropped = cropped[ minWidth - offset : maxWidth - offset , minHeight - offset : maxHeight - offset]
-
-    return np.uint8(cropped)
-
-def contourRectangleCoordinates(contours):
-    # max values
-    maxHeight = -1      # x
-    maxWidth = -1       # y
-
-    # min values
-    minHeight = 10000000    # x
-    minWidth = 10000000     # y
-
-    first = True
-    c=0
-    for i in contours:
-        if first:
-            first = False
-            continue;
-        for j in i: # check contour coordinates
-            for k in j:
-                point = k
-                x = point[0]
-                y = point[1]
-                if x > maxHeight:
-                    maxHeight = x
-                if x < minHeight:
-                    minHeight = x
-                if y > maxWidth:
-                    maxWidth = y
-                if y < minWidth:
-                    minWidth = y
-
-    return maxHeight, minHeight, maxWidth, minWidth
-
+'''
+    Auxiliary function to get the chess rectangles and afterwards delete it (paint as white)
+'''
 def getChessRectangle(corners):
     # max values
     maxHeight = -1  # x
@@ -330,11 +255,8 @@ def getChessRectangle(corners):
     minHeight = 10000000  # x
     minWidth = 10000000  # y
 
-    first = True
-    c = 0
     for i in corners:
         for j in i:  # check contour coordinates
-            #print(j)
             point = j
             x = point[0]
             y = point[1]
@@ -349,31 +271,25 @@ def getChessRectangle(corners):
 
     return maxHeight, minHeight, maxWidth, minWidth
 
+
+'''
+    Finds chessboards centers on the input img and applies perspective transformation
+'''
 def findChessboards(img):#
     pattern_size = (3,3)
     centers = []
     while(True):
         ret, corners = cv2.findChessboardCorners(img, pattern_size, None)
-        #print(corners)
         # If found, add object points, image points
         if ret == True:
             # Draw and display the corners
             cv2.drawChessboardCorners(img, pattern_size, corners, ret)
-            #write_name = 'corners_found'+str(idx)+'.jpg'
-            #cv2.imwrite(write_name, img)
-
-            #cv2.imshow('img', img)
-            #cv2.waitKey(0)
             center = corners[4]
             centers.append(center)
             maxHeight, minHeight, maxWidth, minWidth = getChessRectangle(corners)
 
-            offset = np.float32((corners[1][0][0] - corners[0][0][0]))
             offset = np.float32(50)
-
             cv2.rectangle(img, (minHeight-offset, minWidth-offset), (maxHeight+offset, maxWidth+offset), (255, 255, 255), cv2.FILLED)
-            #cv2.imshow('img', img)
-            #cv2.waitKey(0)
 
         if ret == False:
             break
@@ -390,6 +306,10 @@ def findChessboards(img):#
 
     return warp
 
+
+'''
+    Applies perspective transformation based on chess centers
+'''
 def perspective_transform(image, rect):
     (tl, tr, br, bl) = rect
 
@@ -413,13 +333,25 @@ def perspective_transform(image, rect):
 
     return toRet
 
+
+'''
+    Reads input image, calibrates and rectifies lens distortion, returning a clean image from perspective transformation
+'''
+def readCalibUndist(img):
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img = calibrateAndUndistort(img)
+    _, img = cv2.threshold(img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
+    img = findChessboards(img)
+
+    return img
+
+
 ################################################################################################################
-img = cv2.imread("sheets/test7.jpg")
-img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY);
-img = calibrateAndUndistort(img)
-_, img = cv2.threshold(img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
-img = findChessboards(img)
+
+img = cv2.imread("sheets/test8.jpg")
+img = readCalibUndist(img)
 cv2.imwrite("sheets/WRAPPED.png", img)
+
 run(img)
 
 

@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 import glob
+import sys
 
 
 '''
@@ -147,7 +148,7 @@ def preprocess(img):
 def run(read_img):
     # open image to process
 
-    img_main  = read_img
+    img_main = read_img
     img_color = read_img
     _, templates = cv2.threshold(read_img, 127, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY)
     img_main = preprocess(img_main)
@@ -188,10 +189,11 @@ def run(read_img):
 
     img_color = cv2.cvtColor(img_color, cv2.COLOR_GRAY2BGR)
     cv2.imshow("imgcolor", img_color)
+    cv2.imshow('img', img_main)
     cv2.waitKey(0)
 
     while(True):   # it will stop when there isnt a good match (all white)
-        try:
+        try:       # try a match
             maxval, tH, tW, maxLoc, label = best_match(img_main)
             # match
             (imgtH, imgtW) = templates.shape[:2]
@@ -200,11 +202,13 @@ def run(read_img):
 
             if (maxLoc==0):
                 print("There are no more samples to be recognized !")
-                break;
+                break
         except Exception as e:
             #print(e)
             print("Finished !")
             break
+
+        # Draw and paint
 
         color = (255, 128, 64)
 
@@ -231,16 +235,17 @@ def run(read_img):
                     cv2.putText(img_color, note_label, (note_x, note_y + 15), 2, 1.1, (0,0,255), 2, cv2.LINE_AA)
 
             except Exception as e:
-                print("Couldn't detect the sheet lines.")
+                print("Error while detecting note tones. (best_match_note)")
                 print(e)
 
-
+        # Refresh
         cv2.imshow('img', img_main)
         cv2.imshow('imgcolor', img_color)
         cv2.waitKey(1)
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+    return
 
 
 '''
@@ -348,9 +353,9 @@ def readCalibUndist(img):
 
 ################################################################################################################
 
-img = cv2.imread("sheets/test8.jpg")
+img = cv2.imread("sheets/"+sys.argv[1])
 img = readCalibUndist(img)
-cv2.imwrite("sheets/WRAPPED.png", img)
+cv2.imwrite("sheets/processed.png", img)
 
 run(img)
 

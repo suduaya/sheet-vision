@@ -4,4 +4,4 @@
 ![Input Image](/1.png)
 
 ## Result
-![Input Image](/1.png)
+![Input Image](/2.png)
